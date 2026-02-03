@@ -33,6 +33,7 @@ const keys = {};
 let deaths = 0;
 let startTime = performance.now();
 let shake = 0;
+let spawnGrace = 0;
 
 let currentRun = [];
 let bestGhost = JSON.parse(localStorage.getItem("bestGhost")) || null;
@@ -55,15 +56,15 @@ const player = {
 };
 
 const level = {
-  platforms: [{x:0,y:360,w:800,h:40}],
-  moving: [{x:200,y:280,w:120,h:20,dx:1.4,range:150,startX:200}],
-  spikes: [{x:0,y:340,w:800,h:20}],
-  goal: {x:720,y:80,w:40,h:40}
+  platforms: [{ x: 0, y: 360, w: 800, h: 40 }],
+  moving: [{ x: 200, y: 280, w: 120, h: 20, dx: 1.2, range: 150, startX: 200 }],
+  spikes: [{ x: 0, y: 380, w: 800, h: 20 }],
+  goal: { x: 720, y: 80, w: 40, h: 40 }
 };
 
-function rect(a,b){
-  return a.x < b.x+b.w && a.x+a.w > b.x &&
-         a.y < b.y+b.h && a.y+a.h > b.y;
+function rect(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x &&
+         a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
 document.addEventListener("keydown", e => {
@@ -72,7 +73,7 @@ document.addEventListener("keydown", e => {
 });
 document.addEventListener("keyup", e => keys[e.code] = false);
 
-function resetRun(){
+function resetRun() {
   deaths++;
   shake = 10;
   player.x = 50;
@@ -80,16 +81,19 @@ function resetRun(){
   player.vx = player.vy = 0;
   startTime = performance.now();
   currentRun = [];
+  spawnGrace = 20;
 }
 
-function updateMoving(){
-  level.moving.forEach(p=>{
+function updateMoving() {
+  level.moving.forEach(p => {
     p.x += p.dx;
     if (Math.abs(p.x - p.startX) > p.range) p.dx *= -1;
   });
 }
 
-function update(){
+function update() {
+  if (spawnGrace > 0) spawnGrace--;
+
   // INPUT
   if (keys.KeyA) { player.vx -= player.speed; player.facing = -1; }
   if (keys.KeyD) { player.vx += player.speed; player.facing = 1; }
@@ -100,8 +104,12 @@ function update(){
   if (keys.KeyW) player.buffer = 6;
   else player.buffer--;
 
-  // DASH
-  if ((keys.ShiftLeft || keys.ShiftRight) && player.dashCooldown <= 0) {
+  // DASH (only grounded or wall)
+  if (
+    (keys.ShiftLeft || keys.ShiftRight) &&
+    player.dashCooldown <= 0 &&
+    (player.grounded || player.wall)
+  ) {
     player.dashTime = 8;
     player.dashCooldown = 30;
   }
@@ -122,17 +130,28 @@ function update(){
   player.grounded = false;
   player.wall = false;
 
-  [...level.platforms, ...level.moving].forEach(p=>{
-    if (rect(player,p)) {
-      if (player.vy > 0) {
+  [...level.platforms, ...level.moving].forEach(p => {
+    if (rect(player, p)) {
+      const prevX = player.x - player.vx;
+      const prevY = player.y - player.vy;
+
+      // Land on top
+      if (prevY + player.h <= p.y) {
         player.y = p.y - player.h;
         player.vy = 0;
         player.grounded = true;
         player.coyote = 6;
         if (p.dx) player.x += p.dx;
-      } else {
+      }
+      // Hit left side
+      else if (prevX + player.w <= p.x) {
+        player.x = p.x - player.w;
         player.wall = true;
-        player.vy *= 0.5;
+      }
+      // Hit right side
+      else if (prevX >= p.x + p.w) {
+        player.x = p.x + p.w;
+        player.wall = true;
       }
     }
   });
@@ -157,11 +176,14 @@ function update(){
   }
 
   // DEATH
-  level.spikes.forEach(s => { if (rect(player,s)) resetRun(); });
+  if (spawnGrace <= 0) {
+    level.spikes.forEach(s => {
+      if (rect(player, s)) resetRun();
+    });
+  }
   if (player.y > canvas.height) resetRun();
 
-  // RECORD CURRENT RUN
-  currentRun.push({x: player.x, y: player.y});
+  currentRun.push({ x: player.x, y: player.y });
 
   // GOAL
   if (rect(player, level.goal)) {
@@ -179,14 +201,14 @@ function update(){
   updateMoving();
 }
 
-function draw(){
+function draw() {
   ctx.save();
   if (shake) {
-    ctx.translate((Math.random()-0.5)*shake,(Math.random()-0.5)*shake);
+    ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
     shake--;
   }
 
-  ctx.clearRect(0,0,800,400);
+  ctx.clearRect(0, 0, 800, 400);
 
   // GHOST
   if (bestGhost) {
@@ -203,13 +225,13 @@ function draw(){
 
   // LEVEL
   ctx.fillStyle = "#888";
-  level.platforms.forEach(p=>ctx.fillRect(p.x,p.y,p.w,p.h));
+  level.platforms.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
 
   ctx.fillStyle = "#AAA";
-  level.moving.forEach(p=>ctx.fillRect(p.x,p.y,p.w,p.h));
+  level.moving.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
 
   ctx.fillStyle = "red";
-  level.spikes.forEach(s=>ctx.fillRect(s.x,s.y,s.w,s.h));
+  level.spikes.forEach(s => ctx.fillRect(s.x, s.y, s.w, s.h));
 
   ctx.fillStyle = "gold";
   ctx.fillRect(level.goal.x, level.goal.y, level.goal.w, level.goal.h);
@@ -217,7 +239,7 @@ function draw(){
   // UI
   ctx.fillStyle = "#fff";
   ctx.font = "16px monospace";
-  const t = ((performance.now()-startTime)/1000).toFixed(2);
+  const t = ((performance.now() - startTime) / 1000).toFixed(2);
   ctx.fillText(`Time: ${t}s`, 10, 20);
   if (bestTime) ctx.fillText(`Best: ${bestTime}s`, 10, 40);
   ctx.fillText(`Deaths: ${deaths}`, 10, 60);
@@ -225,7 +247,7 @@ function draw(){
   ctx.restore();
 }
 
-function loop(){
+function loop() {
   update();
   draw();
   requestAnimationFrame(loop);
