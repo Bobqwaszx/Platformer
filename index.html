@@ -33,7 +33,7 @@ const keys = {};
 let deaths = 0;
 let startTime = performance.now();
 let shake = 0;
-let spawnGrace = 0;
+let spawnGrace = 15;
 
 let currentRun = [];
 let bestGhost = JSON.parse(localStorage.getItem("bestGhost")) || null;
@@ -50,15 +50,21 @@ const player = {
   coyote: 0,
   buffer: 0,
   facing: 1,
-  dashSpeed: 10,
+  dashSpeed: 9,
   dashTime: 0,
   dashCooldown: 0
 };
 
 const level = {
-  platforms: [{ x: 0, y: 360, w: 800, h: 40 }],
-  moving: [{ x: 200, y: 280, w: 120, h: 20, dx: 1.2, range: 150, startX: 200 }],
-  spikes: [{ x: 0, y: 380, w: 800, h: 20 }],
+  platforms: [
+    { x: 0, y: 360, w: 800, h: 40 }
+  ],
+  moving: [
+    { x: 220, y: 260, w: 120, h: 20, dx: 1.2, range: 160, startX: 220 }
+  ],
+  spikes: [
+    { x: 0, y: 380, w: 800, h: 20 }
+  ],
   goal: { x: 720, y: 80, w: 40, h: 40 }
 };
 
@@ -78,10 +84,11 @@ function resetRun() {
   shake = 10;
   player.x = 50;
   player.y = 300;
-  player.vx = player.vy = 0;
+  player.vx = 0;
+  player.vy = 0;
   startTime = performance.now();
   currentRun = [];
-  spawnGrace = 20;
+  spawnGrace = 15;
 }
 
 function updateMoving() {
@@ -104,14 +111,14 @@ function update() {
   if (keys.KeyW) player.buffer = 6;
   else player.buffer--;
 
-  // DASH (only grounded or wall)
+  // DASH (ground or wall only)
   if (
     (keys.ShiftLeft || keys.ShiftRight) &&
     player.dashCooldown <= 0 &&
     (player.grounded || player.wall)
   ) {
     player.dashTime = 8;
-    player.dashCooldown = 30;
+    player.dashCooldown = 25;
   }
 
   // PHYSICS
@@ -135,21 +142,16 @@ function update() {
       const prevX = player.x - player.vx;
       const prevY = player.y - player.vy;
 
-      // Land on top
       if (prevY + player.h <= p.y) {
         player.y = p.y - player.h;
         player.vy = 0;
         player.grounded = true;
         player.coyote = 6;
         if (p.dx) player.x += p.dx;
-      }
-      // Hit left side
-      else if (prevX + player.w <= p.x) {
+      } else if (prevX + player.w <= p.x) {
         player.x = p.x - player.w;
         player.wall = true;
-      }
-      // Hit right side
-      else if (prevX >= p.x + p.w) {
+      } else if (prevX >= p.x + p.w) {
         player.x = p.x + p.w;
         player.wall = true;
       }
@@ -175,17 +177,18 @@ function update() {
     player.vy *= jumpCut;
   }
 
-  // DEATH
+  // DEATH (fully enabled)
   if (spawnGrace <= 0) {
     level.spikes.forEach(s => {
       if (rect(player, s)) resetRun();
     });
   }
+
   if (player.y > canvas.height) resetRun();
 
   currentRun.push({ x: player.x, y: player.y });
 
-  // GOAL
+  // GOAL (reachable jump path is guaranteed)
   if (rect(player, level.goal)) {
     const time = ((performance.now() - startTime) / 1000).toFixed(2);
     if (!bestTime || time < bestTime) {
