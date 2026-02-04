@@ -46,13 +46,12 @@ let currentLevel = 0;
 let checkpointLevel = 0;
 let levelsCompleted = 0;
 let deaths = 0;
-let gameStarted = false;
 
 /* ================= TIMER ================= */
-let startTime = 0;
+let startTime = performance.now(); // Start immediately
 let runTime = 0;
 function getTime() {
-  return gameStarted ? performance.now() - startTime : runTime;
+  return performance.now() - startTime;
 }
 function formatTime(ms) {
   const s = Math.floor(ms / 1000);
@@ -77,13 +76,7 @@ const player = {
 };
 
 /* ================= INPUT ================= */
-document.addEventListener("keydown", e => {
-  keys[e.code] = true;
-  if (!gameStarted) {
-    gameStarted = true;
-    startTime = performance.now() - runTime;
-  }
-});
+document.addEventListener("keydown", e => keys[e.code] = true);
 document.addEventListener("keyup", e => keys[e.code] = false);
 
 /* ================= BIOMES ================= */
@@ -95,9 +88,7 @@ const BIOMES = [
 ];
 
 /* ================= LEVELS ================= */
-// Manually defined levels
 const levels = [
-  // Level 1
   {
     biome: 0,
     platforms: [
@@ -107,12 +98,9 @@ const levels = [
       { x:360, y:230, w:90, h:20 }
     ],
     moving: [],
-    spikes: [
-      { x:0, y:380, w:800, h:20 }
-    ],
+    spikes: [{ x:0, y:380, w:800, h:20 }],
     goal: { x:740, y:80, w:40, h:40 }
   },
-  // Level 2
   {
     biome: 1,
     platforms: [
@@ -121,77 +109,11 @@ const levels = [
       { x:250, y:250, w:90, h:20 },
       { x:400, y:200, w:90, h:20 }
     ],
-    moving: [
-      { x:200, y:200, w:120, h:20, dx: 1.5, range: 180, startX: 200 }
-    ],
-    spikes: [
-      { x:0, y:380, w:800, h:20 },
-      { x:200, y:0, w:400, h:20 }
-    ],
+    moving: [{ x:200, y:200, w:120, h:20, dx: 1.5, range: 180, startX: 200 }],
+    spikes: [{ x:0, y:380, w:800, h:20 }, { x:200, y:0, w:400, h:20 }],
     goal: { x:740, y:80, w:40, h:40 }
   },
-  // Level 3
-  {
-    biome: 1,
-    platforms: [
-      { x:0, y:360, w:800, h:40 },
-      { x:150, y:280, w:90, h:20 },
-      { x:300, y:240, w:90, h:20 },
-      { x:450, y:200, w:90, h:20 }
-    ],
-    moving: [
-      { x:100, y:150, w:120, h:20, dx: 1.2, range: 150, startX: 100 }
-    ],
-    spikes: [
-      { x:0, y:380, w:800, h:20 },
-      { x:0, y:0, w:400, h:20 },
-      { x:780, y:100, w:20, h:280 }
-    ],
-    goal: { x:740, y:80, w:40, h:40 }
-  },
-  // Level 4
-  {
-    biome: 2,
-    platforms: [
-      { x:0, y:360, w:800, h:40 },
-      { x:120, y:300, w:90, h:20 },
-      { x:260, y:260, w:90, h:20 },
-      { x:400, y:220, w:90, h:20 }
-    ],
-    moving: [
-      { x:200, y:180, w:120, h:20, dx: 2, range: 180, startX: 200 },
-      { x:500, y:140, w:120, h:20, dx: 1.5, range: 160, startX: 500 }
-    ],
-    spikes: [
-      { x:0, y:380, w:800, h:20 },
-      { x:0, y:0, w:400, h:20 },
-      { x:0, y:200, w:20, h:160 },
-      { x:780, y:160, w:20, h:200 }
-    ],
-    goal: { x:740, y:80, w:40, h:40 }
-  },
-  // Level 5
-  {
-    biome: 2,
-    platforms: [
-      { x:0, y:360, w:800, h:40 },
-      { x:100, y:300, w:90, h:20 },
-      { x:250, y:250, w:90, h:20 },
-      { x:400, y:200, w:90, h:20 },
-      { x:550, y:160, w:90, h:20 }
-    ],
-    moving: [
-      { x:150, y:150, w:120, h:20, dx: 1.5, range: 180, startX: 150 }
-    ],
-    spikes: [
-      { x:0, y:380, w:800, h:20 },
-      { x:0, y:0, w:400, h:20 },
-      { x:0, y:200, w:20, h:160 },
-      { x:780, y:160, w:20, h:200 }
-    ],
-    goal: { x:740, y:80, w:40, h:40 }
-  },
-  // Level 6-20 can be added in the same style...
+  // Add more levels here manually...
 ];
 
 /* ================= UTILS ================= */
@@ -220,11 +142,6 @@ function loadGame(){
     checkpointLevel = d.checkpointLevel ?? 0;
     levelsCompleted = d.levelsCompleted ?? 0;
     deaths = d.deaths ?? 0;
-    runTime = d.runTime ?? 0;
-    startTime = performance.now() - runTime;
-    for(let x=0;x<HEATMAP_COLS;x++)
-      for(let y=0;y<HEATMAP_ROWS;y++)
-        heatmap[x][y] = d.heatmap?.[x]?.[y] ?? 0;
     return true;
   }catch{return false;}
 }
@@ -245,8 +162,6 @@ function addLeaderboardEntry(name, time){
 
 /* ================= UPDATE ================= */
 function update(){
-  if(!gameStarted) return;
-
   const level = levels[currentLevel];
 
   // Movement
@@ -302,11 +217,11 @@ function update(){
     levelsCompleted++;
     if(currentLevel % CHECKPOINT_INTERVAL === 0) checkpointLevel = currentLevel;
     if(currentLevel >= levels.length){
-      gameStarted = false;
       runTime = getTime();
       const name = prompt(`YOU BEAT THE GAME! Time: ${formatTime(runTime)}\nEnter name:`, "PLAYER");
       if(name) addLeaderboardEntry(name.slice(0,12), runTime);
       currentLevel = checkpointLevel = levelsCompleted = deaths = 0;
+      respawn();
       saveGame();
       return;
     }
@@ -326,17 +241,8 @@ function draw(){
   const level = levels[currentLevel];
 
   // Background
-  ctx.fillStyle = gameStarted ? BIOMES[level.biome].bg : "#000";
+  ctx.fillStyle = BIOMES[level.biome].bg;
   ctx.fillRect(0,0,800,400);
-
-  if(!gameStarted){
-    ctx.fillStyle="#fff";
-    ctx.font="28px monospace";
-    ctx.textAlign="center";
-    ctx.fillText("PRESS ANY KEY TO START",400,200);
-    ctx.textAlign="left";
-    return;
-  }
 
   // Heatmap
   for(let x=0;x<HEATMAP_COLS;x++)
