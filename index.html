@@ -24,239 +24,199 @@ canvas {
 <canvas id="game" width="800" height="400"></canvas>
 
 <script>
-/* =====================================================
-   CORE
-===================================================== */
+/* ================= CORE ================= */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
 const gravity = 0.7;
-const jumpCut = 0.4;
+const jumpForce = -14;
+const friction = 0.85;
 const keys = {};
 
 const TOTAL_LEVELS = 20;
-const BIOME_SIZE = 5;
+const CHECKPOINT_INTERVAL = 5;
 
-let deaths = 0;
 let currentLevel = 0;
 let checkpointLevel = 0;
-let spawnGrace = 15;
-
+let levelsCompleted = 0;
+let deaths = 0;
 let gameStarted = false;
 
-/* =====================================================
-   SAVE + LEADERBOARD
-===================================================== */
-const SAVE_KEY = "hard_platformer_save";
-const LEADERBOARD_KEY = "hard_platformer_leaderboard";
-
-/* =====================================================
-   TIMER
-===================================================== */
-let runStartTime = null;
-let runTime = 0;
-let timerRunning = false;
-
-function startTimer() {
-  if (!timerRunning) {
-    runStartTime = performance.now() - runTime;
-    timerRunning = true;
-  }
+/* ================= TIMER ================= */
+let startTime = 0;
+function getTime() {
+  return gameStarted ? performance.now() - startTime : 0;
+}
+function formatTime(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  return `${m}:${(s % 60).toString().padStart(2,"0")}`;
 }
 
-function stopTimer() {
-  if (timerRunning) {
-    runTime = performance.now() - runStartTime;
-    timerRunning = false;
-  }
-}
-
-function resetTimer() {
-  runTime = 0;
-  runStartTime = null;
-  timerRunning = false;
-}
-
-function getFormattedTime(ms) {
-  const t = Math.floor(ms);
-  const m = Math.floor(t / 60000);
-  const s = Math.floor((t % 60000) / 1000);
-  const ms2 = Math.floor((t % 1000) / 10);
-  return `${m}:${s.toString().padStart(2, "0")}.${ms2
-    .toString()
-    .padStart(2, "0")}`;
-}
-
-/* =====================================================
-   HEATMAP
-===================================================== */
-const heatmap = Array.from({ length: 80 }, () =>
-  Array.from({ length: 40 }, () => 0)
-);
-
-/* =====================================================
-   PLAYER
-===================================================== */
+/* ================= PLAYER ================= */
 const player = {
   x: 50, y: 300, w: 30, h: 30,
   vx: 0, vy: 0,
   speed: 0.6,
-  maxSpeed: 4,
-  jump: -14,
+  maxSpeed: 5,
   grounded: false,
-  wall: false,
   coyote: 0,
-  buffer: 0,
-  facing: 1
+  jumpBuffer: 0
 };
 
-/* =====================================================
-   INPUT
-===================================================== */
+/* ================= INPUT ================= */
 document.addEventListener("keydown", e => {
   keys[e.code] = true;
-  if (!gameStarted) gameStarted = true;
+  if (!gameStarted) {
+    gameStarted = true;
+    startTime = performance.now();
+  }
 });
 document.addEventListener("keyup", e => keys[e.code] = false);
 
-/* =====================================================
-   UTILS
-===================================================== */
-function rect(a, b) {
-  return a.x < b.x + b.w && a.x + a.w > b.x &&
-         a.y < b.y + b.h && a.y + a.h > b.y;
+/* ================= UTILS ================= */
+function rect(a,b){
+  return a.x < b.x+b.w && a.x+a.w > b.x &&
+         a.y < b.y+b.h && a.y+a.h > b.y;
 }
 
-function resetPlayer() {
+function respawn() {
   player.x = 50;
   player.y = 300;
-  player.vx = 0;
-  player.vy = 0;
-  spawnGrace = 15;
+  player.vx = player.vy = 0;
 }
 
-/* =====================================================
-   BIOMES
-===================================================== */
-const BIOMES = [
-  { bg: "#112", spike: "red" },
-  { bg: "#0a1a2a", spike: "#7ff" },
-  { bg: "#2a0a0a", spike: "orange" },
-  { bg: "#000", spike: "magenta" }
-];
-
-/* =====================================================
-   LEVEL GENERATION
-===================================================== */
+/* ================= LEVEL ================= */
 function generateLevel(n) {
-  const biome = Math.floor(n / BIOME_SIZE);
-  const platforms = [{ x: 0, y: 360, w: 800, h: 40 }];
-  const moving = [];
-  const spikes = [];
-  const goal = { x: 740, y: 80, w: 40, h: 40 };
+  const platforms = [{ x:0, y:360, w:800, h:40 }];
+  const spikes = [{ x:0, y:380, w:800, h:20 }];
+  const goal = { x:740, y:80, w:40, h:40 };
 
-  for (let i = 0; i < 6; i++) {
+  for (let i=0;i<5;i++) {
     platforms.push({
-      x: 120 + i * 110,
-      y: 300 - i * 25,
-      w: 80,
-      h: 20
+      x:120 + i*120,
+      y:300 - i*35,
+      w:90,
+      h:20
     });
+
+    if (i % 2 === 0) {
+      spikes.push({
+        x:160 + i*120,
+        y:340 - i*35,
+        w:40,
+        h:20
+      });
+    }
   }
 
-  spikes.push({ x: 0, y: 380, w: 800, h: 20 });
-
-  return { platforms, moving, spikes, goal, biome };
+  return { platforms, spikes, goal };
 }
 
-/* =====================================================
-   SAVE / LOAD
-===================================================== */
-function saveGame() {
-  localStorage.setItem(SAVE_KEY, JSON.stringify({
-    currentLevel,
-    checkpointLevel,
-    deaths,
-    heatmap,
-    runTime
-  }));
-}
+let level = generateLevel(0);
 
-function loadGame() {
-  const raw = localStorage.getItem(SAVE_KEY);
-  if (!raw) return;
-  try {
-    const d = JSON.parse(raw);
-    currentLevel = d.currentLevel ?? 0;
-    checkpointLevel = d.checkpointLevel ?? 0;
-    deaths = d.deaths ?? 0;
-    runTime = d.runTime ?? 0;
-  } catch {}
-}
-
-/* =====================================================
-   INIT (ABSOLUTE SAFETY)
-===================================================== */
-loadGame();
-let level = generateLevel(currentLevel);
-
-/* =====================================================
-   UPDATE
-===================================================== */
+/* ================= UPDATE ================= */
 function update() {
   if (!gameStarted) return;
-
-  if (!timerRunning &&
-    (keys.KeyA || keys.KeyD || keys.KeyW ||
-     keys.ArrowLeft || keys.ArrowRight || keys.ArrowUp))
-    startTimer();
 
   if (keys.KeyA || keys.ArrowLeft) player.vx -= player.speed;
   if (keys.KeyD || keys.ArrowRight) player.vx += player.speed;
 
-  player.vx *= 0.9;
+  if (keys.KeyW || keys.ArrowUp || keys.Space) player.jumpBuffer = 6;
+  else player.jumpBuffer--;
+
+  player.vx = Math.max(-player.maxSpeed, Math.min(player.maxSpeed, player.vx));
+  player.vx *= friction;
+
   player.vy += gravity;
   player.x += player.vx;
   player.y += player.vy;
 
+  player.grounded = false;
+
   level.platforms.forEach(p => {
-    if (rect(player, p)) {
-      player.y = p.y - player.h;
-      player.vy = 0;
+    if (rect(player,p)) {
+      const prevY = player.y - player.vy;
+      if (prevY + player.h <= p.y) {
+        player.y = p.y - player.h;
+        player.vy = 0;
+        player.grounded = true;
+        player.coyote = 6;
+      }
     }
   });
+
+  if (!player.grounded) player.coyote--;
+
+  if (player.jumpBuffer > 0 && player.coyote > 0) {
+    player.vy = jumpForce;
+    player.jumpBuffer = 0;
+  }
+
+  level.spikes.forEach(s => {
+    if (rect(player,s)) {
+      deaths++;
+      currentLevel = checkpointLevel;
+      level = generateLevel(currentLevel);
+      respawn();
+    }
+  });
+
+  if (rect(player, level.goal)) {
+    currentLevel++;
+    levelsCompleted++;
+
+    if (currentLevel % CHECKPOINT_INTERVAL === 0) {
+      checkpointLevel = currentLevel;
+    }
+
+    if (currentLevel >= TOTAL_LEVELS) {
+      alert("YOU BEAT THE GAME!");
+      currentLevel = checkpointLevel = levelsCompleted = deaths = 0;
+      gameStarted = false;
+      return;
+    }
+
+    level = generateLevel(currentLevel);
+    respawn();
+  }
 }
 
-/* =====================================================
-   DRAW
-===================================================== */
+/* ================= DRAW ================= */
 function draw() {
-  // SAFE CLEAR
   ctx.fillStyle = "#000";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0,0,800,400);
 
   if (!gameStarted) {
     ctx.fillStyle = "#fff";
     ctx.font = "28px monospace";
     ctx.textAlign = "center";
-    ctx.fillText("PRESS ANY KEY TO START", canvas.width/2, canvas.height/2);
+    ctx.fillText("PRESS ANY KEY TO START", 400, 200);
     ctx.textAlign = "left";
     return;
   }
 
-  ctx.fillStyle = BIOMES[level.biome].bg;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#777";
+  level.platforms.forEach(p => ctx.fillRect(p.x,p.y,p.w,p.h));
 
-  ctx.fillStyle = "#888";
-  level.platforms.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
+  ctx.fillStyle = "red";
+  level.spikes.forEach(s => ctx.fillRect(s.x,s.y,s.w,s.h));
+
+  ctx.fillStyle = "gold";
+  ctx.fillRect(level.goal.x, level.goal.y, level.goal.w, level.goal.h);
 
   ctx.fillStyle = "#4CAF50";
   ctx.fillRect(player.x, player.y, player.w, player.h);
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "14px monospace";
+  ctx.fillText(`Level: ${currentLevel+1}/${TOTAL_LEVELS}`, 10, 18);
+  ctx.fillText(`Checkpoint: ${checkpointLevel+1}`, 10, 34);
+  ctx.fillText(`Deaths: ${deaths}`, 10, 50);
+  ctx.fillText(`Time: ${formatTime(getTime())}`, 10, 66);
 }
 
-/* =====================================================
-   LOOP
-===================================================== */
+/* ================= LOOP ================= */
 function loop() {
   update();
   draw();
