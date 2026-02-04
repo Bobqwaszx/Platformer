@@ -24,6 +24,9 @@ canvas {
 <canvas id="game" width="800" height="400"></canvas>
 
 <script>
+/* =====================================================
+   CORE
+===================================================== */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
@@ -31,12 +34,67 @@ const gravity = 0.7;
 const jumpCut = 0.4;
 const keys = {};
 
+const TOTAL_LEVELS = 20;
+const BIOME_SIZE = 5;
+
 let deaths = 0;
 let currentLevel = 0;
-const TOTAL_LEVELS = 100;
+let checkpointLevel = 0;
 let spawnGrace = 15;
 
-/* ---------- PLAYER ---------- */
+/* =====================================================
+   SAVE + LEADERBOARD
+===================================================== */
+const SAVE_KEY = "hard_platformer_save";
+const LEADERBOARD_KEY = "hard_platformer_leaderboard";
+
+/* =====================================================
+   TIMER
+===================================================== */
+let runStartTime = null;
+let runTime = 0;
+let timerRunning = false;
+
+function startTimer() {
+  if (!timerRunning) {
+    runStartTime = performance.now() - runTime;
+    timerRunning = true;
+  }
+}
+
+function stopTimer() {
+  if (timerRunning) {
+    runTime = performance.now() - runStartTime;
+    timerRunning = false;
+  }
+}
+
+function resetTimer() {
+  runTime = 0;
+  runStartTime = null;
+  timerRunning = false;
+}
+
+function getFormattedTime(ms) {
+  const t = Math.floor(ms);
+  const m = Math.floor(t / 60000);
+  const s = Math.floor((t % 60000) / 1000);
+  const ms2 = Math.floor((t % 1000) / 10);
+  return `${m}:${s.toString().padStart(2, "0")}.${ms2
+    .toString()
+    .padStart(2, "0")}`;
+}
+
+/* =====================================================
+   HEATMAP
+===================================================== */
+const heatmap = Array.from({ length: 80 }, () =>
+  Array.from({ length: 40 }, () => 0)
+);
+
+/* =====================================================
+   PLAYER
+===================================================== */
 const player = {
   x: 50, y: 300, w: 30, h: 30,
   vx: 0, vy: 0,
@@ -50,100 +108,15 @@ const player = {
   facing: 1
 };
 
-/* ---------- LEVEL ARCHETYPES ---------- */
-function generateLevel(n) {
-  const type = n % 5;
-  const platforms = [{ x: 0, y: 360, w: 800, h: 40 }];
-  const moving = [];
-  const spikes = [{ x: 0, y: 380, w: 800, h: 20 }];
-  let goal = { x: 740, y: 300, w: 40, h: 40 };
-
-  const speed = Math.min(1 + n * 0.03, 3);
-
-  /* --- TYPE 0: STAIRCASE --- */
-  if (type === 0) {
-    let x = 120, y = 300;
-    for (let i = 0; i < 6; i++) {
-      platforms.push({ x, y, w: 100, h: 20 });
-      x += 110;
-      y -= 35;
-    }
-    goal.y = y - 40;
-  }
-
-  /* --- TYPE 1: MOVING TIMING --- */
-  if (type === 1) {
-    for (let i = 0; i < 4; i++) {
-      moving.push({
-        x: 150 + i * 150,
-        y: 260 - i * 30,
-        w: 100,
-        h: 20,
-        dx: speed,
-        range: 120,
-        startX: 150 + i * 150
-      });
-    }
-    goal.y = 120;
-  }
-
-  /* --- TYPE 2: WALL SHAFT --- */
-  if (type === 2) {
-    for (let i = 0; i < 6; i++) {
-      platforms.push({
-        x: i % 2 === 0 ? 80 : 620,
-        y: 320 - i * 40,
-        w: 100,
-        h: 20
-      });
-    }
-    goal.x = 380;
-    goal.y = 60;
-  }
-
-  /* --- TYPE 3: GAP GAUNTLET --- */
-  if (type === 3) {
-    let x = 120;
-    for (let i = 0; i < 5; i++) {
-      platforms.push({
-        x,
-        y: 280,
-        w: 80,
-        h: 20
-      });
-      x += 140;
-    }
-    goal.y = 240;
-  }
-
-  /* --- TYPE 4: HYBRID --- */
-  if (type === 4) {
-    platforms.push({ x: 200, y: 300, w: 120, h: 20 });
-    platforms.push({ x: 450, y: 230, w: 120, h: 20 });
-
-    moving.push({
-      x: 300,
-      y: 160,
-      w: 100,
-      h: 20,
-      dx: speed,
-      range: 180,
-      startX: 300
-    });
-
-    goal.y = 100;
-  }
-
-  return { platforms, moving, spikes, goal };
-}
-
-let level = generateLevel(0);
-
-/* ---------- INPUT ---------- */
+/* =====================================================
+   INPUT
+===================================================== */
 document.addEventListener("keydown", e => keys[e.code] = true);
 document.addEventListener("keyup", e => keys[e.code] = false);
 
-/* ---------- UTILS ---------- */
+/* =====================================================
+   UTILS
+===================================================== */
 function rect(a, b) {
   return a.x < b.x + b.w && a.x + a.w > b.x &&
          a.y < b.y + b.h && a.y + a.h > b.y;
@@ -157,19 +130,164 @@ function resetPlayer() {
   spawnGrace = 15;
 }
 
-function nextLevel() {
-  currentLevel++;
-  if (currentLevel >= TOTAL_LEVELS) {
-    alert("ALL 100 LEVELS CLEARED");
-    currentLevel = 0;
-    deaths = 0;
+/* =====================================================
+   BIOMES
+===================================================== */
+const BIOMES = [
+  { name: "GRASS", bg: "#112", spike: "red" },
+  { name: "ICE", bg: "#0a1a2a", spike: "#7ff" },
+  { name: "LAVA", bg: "#2a0a0a", spike: "orange" },
+  { name: "VOID", bg: "#000", spike: "magenta" }
+];
+
+/* =====================================================
+   LEVEL GENERATION
+===================================================== */
+function generateLevel(n) {
+  const biome = Math.floor(n / BIOME_SIZE);
+  const platforms = [{ x: 0, y: 360, w: 800, h: 40 }];
+  const moving = [];
+  const spikes = [];
+  let goal = { x: 740, y: 80, w: 40, h: 40 };
+
+  for (let i = 0; i < 6; i++) {
+    platforms.push({
+      x: 120 + i * 110,
+      y: 300 - i * (25 + biome * 5),
+      w: 80,
+      h: 20
+    });
   }
-  level = generateLevel(currentLevel);
-  resetPlayer();
+
+  if (biome >= 1) {
+    moving.push({
+      x: 300,
+      y: 200,
+      w: 120,
+      h: 20,
+      dx: 1 + biome * 0.5,
+      range: 180,
+      startX: 300
+    });
+  }
+
+  spikes.push({ x: 0, y: 380, w: 800, h: 20 });
+
+  if (biome >= 1)
+    spikes.push({ x: 200, y: 0, w: 400, h: 20 });
+
+  if (biome >= 2) {
+    spikes.push({ x: 0, y: 200, w: 20, h: 160 });
+    spikes.push({ x: 780, y: 160, w: 20, h: 200 });
+  }
+
+  if (biome === 3) {
+    for (let i = 0; i < 6; i++) {
+      spikes.push({
+        x: 200 + i * 60,
+        y: i % 2 === 0 ? 140 : 260,
+        w: 40,
+        h: 20
+      });
+    }
+  }
+
+  return { platforms, moving, spikes, goal, biome };
 }
 
-/* ---------- UPDATE ---------- */
+/* =====================================================
+   SAVE / LOAD
+===================================================== */
+function saveGame() {
+  localStorage.setItem(SAVE_KEY, JSON.stringify({
+    currentLevel,
+    checkpointLevel,
+    deaths,
+    heatmap,
+    runTime
+  }));
+}
+
+function loadGame() {
+  const raw = localStorage.getItem(SAVE_KEY);
+  if (!raw) return false;
+  try {
+    const d = JSON.parse(raw);
+    currentLevel = d.currentLevel ?? 0;
+    checkpointLevel = d.checkpointLevel ?? 0;
+    deaths = d.deaths ?? 0;
+    runTime = d.runTime ?? 0;
+    for (let x = 0; x < 80; x++)
+      for (let y = 0; y < 40; y++)
+        heatmap[x][y] = d.heatmap?.[x]?.[y] ?? 0;
+    return true;
+  } catch { return false; }
+}
+
+function clearSave() {
+  localStorage.removeItem(SAVE_KEY);
+}
+
+/* =====================================================
+   LEADERBOARD
+===================================================== */
+function loadLeaderboard() {
+  return JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || "[]");
+}
+
+function saveLeaderboard(b) {
+  localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(b));
+}
+
+function addLeaderboardEntry(name, time) {
+  const b = loadLeaderboard();
+  b.push({ name, time });
+  b.sort((a, c) => a.time - c.time);
+  saveLeaderboard(b.slice(0, 5));
+}
+
+/* =====================================================
+   LEVEL FLOW
+===================================================== */
+function nextLevel() {
+  currentLevel++;
+
+  if (currentLevel % BIOME_SIZE === 0)
+    checkpointLevel = currentLevel;
+
+  if (currentLevel >= TOTAL_LEVELS) {
+    stopTimer();
+    const finalTime = runTime;
+    const name = prompt(
+      `YOU BEAT THE GAME 🔥\nTime: ${getFormattedTime(finalTime)}\n\nEnter your name:`,
+      "PLAYER"
+    );
+    if (name) addLeaderboardEntry(name.slice(0, 12), finalTime);
+    clearSave();
+    resetTimer();
+    currentLevel = 0;
+    checkpointLevel = 0;
+    deaths = 0;
+  }
+
+  level = generateLevel(currentLevel);
+  resetPlayer();
+  saveGame();
+}
+
+/* =====================================================
+   INIT
+===================================================== */
+let level;
+loadGame() || (level = generateLevel(0));
+
+/* =====================================================
+   UPDATE
+===================================================== */
 function update() {
+  if (!timerRunning && (keys.KeyA || keys.KeyD || keys.KeyW))
+    startTimer();
+
   if (spawnGrace > 0) spawnGrace--;
 
   if (keys.KeyA) { player.vx -= player.speed; player.facing = -1; }
@@ -178,11 +296,9 @@ function update() {
   player.vx *= 0.9;
   player.vx = Math.max(-player.maxSpeed, Math.min(player.maxSpeed, player.vx));
 
-  if (keys.KeyW) player.buffer = 6;
-  else player.buffer--;
+  player.buffer = keys.KeyW ? 6 : player.buffer - 1;
 
   player.vy += gravity;
-
   player.x += player.vx;
   player.y += player.vy;
 
@@ -191,33 +307,23 @@ function update() {
 
   [...level.platforms, ...level.moving].forEach(p => {
     if (rect(player, p)) {
-      const px = player.x - player.vx;
       const py = player.y - player.vy;
-
       if (py + player.h <= p.y) {
         player.y = p.y - player.h;
         player.vy = 0;
         player.grounded = true;
         player.coyote = 6;
         if (p.dx) player.x += p.dx;
-      } else if (px + player.w <= p.x) {
-        player.x = p.x - player.w;
-        player.wall = true;
-      } else if (px >= p.x + p.w) {
-        player.x = p.x + p.w;
-        player.wall = true;
-      }
+      } else player.wall = true;
     }
   });
 
   if (!player.grounded) player.coyote--;
 
-  if (player.buffer > 0) {
-    if (player.coyote > 0 || player.wall) {
-      player.vy = player.jump;
-      if (player.wall) player.vx = -player.facing * 6;
-      player.buffer = 0;
-    }
+  if (player.buffer > 0 && (player.coyote > 0 || player.wall)) {
+    player.vy = player.jump;
+    if (player.wall) player.vx = -player.facing * 6;
+    player.buffer = 0;
   }
 
   if (!keys.KeyW && player.vy < 0) player.vy *= jumpCut;
@@ -226,7 +332,11 @@ function update() {
     level.spikes.forEach(s => {
       if (rect(player, s)) {
         deaths++;
+        heatmap[Math.floor(player.x / 10)]?.[Math.floor(player.y / 10)]++;
+        currentLevel = checkpointLevel;
+        level = generateLevel(currentLevel);
         resetPlayer();
+        saveGame();
       }
     });
   }
@@ -239,32 +349,47 @@ function update() {
   });
 }
 
-/* ---------- DRAW ---------- */
+/* =====================================================
+   DRAW
+===================================================== */
 function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = BIOMES[level.biome].bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let x = 0; x < 80; x++)
+    for (let y = 0; y < 40; y++)
+      if (heatmap[x][y] > 0) {
+        ctx.fillStyle = `rgba(255,0,0,${Math.min(heatmap[x][y]/10,0.4)})`;
+        ctx.fillRect(x*10, y*10, 10, 10);
+      }
 
   ctx.fillStyle = "#888";
   level.platforms.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
-
-  ctx.fillStyle = "#AAA";
+  ctx.fillStyle = "#aaa";
   level.moving.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
-
-  ctx.fillStyle = "red";
+  ctx.fillStyle = BIOMES[level.biome].spike;
   level.spikes.forEach(s => ctx.fillRect(s.x, s.y, s.w, s.h));
-
   ctx.fillStyle = "gold";
   ctx.fillRect(level.goal.x, level.goal.y, level.goal.w, level.goal.h);
-
   ctx.fillStyle = "#4CAF50";
   ctx.fillRect(player.x, player.y, 30, 30);
 
   ctx.fillStyle = "#fff";
-  ctx.font = "16px monospace";
-  ctx.fillText(`Level ${currentLevel + 1} / ${TOTAL_LEVELS}`, 10, 20);
-  ctx.fillText(`Deaths: ${deaths}`, 10, 40);
+  ctx.font = "14px monospace";
+  ctx.fillText(`Level ${currentLevel+1}/${TOTAL_LEVELS}`, 10, 18);
+  ctx.fillText(`Deaths: ${deaths}`, 10, 34);
+  ctx.fillText(`Time: ${getFormattedTime(timerRunning ? performance.now()-runStartTime : runTime)}`, 10, 50);
+
+  const lb = loadLeaderboard();
+  ctx.fillText("🏆 FASTEST RUNS", 520, 20);
+  lb.forEach((e,i)=>{
+    ctx.fillText(`${i+1}. ${e.name} — ${getFormattedTime(e.time)}`,520,40+i*18);
+  });
 }
 
-/* ---------- LOOP ---------- */
+/* =====================================================
+   LOOP
+===================================================== */
 function loop() {
   update();
   draw();
