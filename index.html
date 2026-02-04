@@ -1,3 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Hard Platformer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  margin: 0;
+  background: black;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+canvas {
+  background: #111;
+  border: 2px solid #555;
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="game" width="800" height="400"></canvas>
+
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -20,7 +47,7 @@ const player = {
   vx: 0, vy: 0,
   speed: 0.6,
   maxSpeed: 4,
-  jump: -14,              // slight buff to replace dash
+  jump: -14,
   grounded: false,
   wall: false,
   coyote: 0,
@@ -31,7 +58,7 @@ const player = {
 const level = {
   platforms: [
     { x: 0, y: 360, w: 800, h: 40 },
-    { x: 520, y: 210, w: 120, h: 20 } // landing after moving platform
+    { x: 520, y: 210, w: 120, h: 20 }
   ],
   moving: [
     { x: 220, y: 260, w: 120, h: 20, dx: 1.2, range: 160, startX: 220 }
@@ -39,7 +66,7 @@ const level = {
   spikes: [
     { x: 0, y: 380, w: 800, h: 20 }
   ],
-  goal: { x: 720, y: 160, w: 40, h: 40 } // lowered for no-dash completion
+  goal: { x: 720, y: 160, w: 40, h: 40 }
 };
 
 function rect(a, b) {
@@ -75,7 +102,6 @@ function updateMoving() {
 function update() {
   if (spawnGrace > 0) spawnGrace--;
 
-  // INPUT
   if (keys.KeyA) { player.vx -= player.speed; player.facing = -1; }
   if (keys.KeyD) { player.vx += player.speed; player.facing = 1; }
 
@@ -85,7 +111,6 @@ function update() {
   if (keys.KeyW) player.buffer = 6;
   else player.buffer--;
 
-  // PHYSICS
   player.vy += gravity;
 
   player.x += player.vx;
@@ -117,7 +142,6 @@ function update() {
 
   if (!player.grounded) player.coyote--;
 
-  // JUMP / WALL JUMP
   if (player.buffer > 0) {
     if (player.coyote > 0) {
       player.vy = player.jump;
@@ -129,12 +153,10 @@ function update() {
     }
   }
 
-  // VARIABLE JUMP
   if (!keys.KeyW && player.vy < 0) {
     player.vy *= jumpCut;
   }
 
-  // DEATH
   if (spawnGrace <= 0) {
     level.spikes.forEach(s => {
       if (rect(player, s)) resetRun();
@@ -145,7 +167,6 @@ function update() {
 
   currentRun.push({ x: player.x, y: player.y });
 
-  // GOAL
   if (rect(player, level.goal)) {
     const time = ((performance.now() - startTime) / 1000).toFixed(2);
     if (!bestTime || time < bestTime) {
@@ -168,7 +189,7 @@ function draw() {
     shake--;
   }
 
-  ctx.clearRect(0, 0, 800, 400);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (bestGhost) {
     const i = currentRun.length;
@@ -211,3 +232,6 @@ function loop() {
 
 loop();
 </script>
+
+</body>
+</html>
