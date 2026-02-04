@@ -1,6 +1,237 @@
 <!DOCTYPE html>
-<html>
-<body style="background:black; color:white; font-size:40px;">
-  IT WORKS
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Hard Platformer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+  margin: 0;
+  background: black;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+canvas {
+  background: #111;
+  border: 2px solid #555;
+}
+</style>
+</head>
+<body>
+
+<canvas id="game" width="800" height="400"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const gravity = 0.7;
+const jumpCut = 0.4;
+const keys = {};
+
+let deaths = 0;
+let shake = 0;
+let spawnGrace = 15;
+let currentLevel = 0;
+
+const TOTAL_LEVELS = 100;
+
+/* ---------- PLAYER ---------- */
+const player = {
+  x: 50, y: 300, w: 30, h: 30,
+  vx: 0, vy: 0,
+  speed: 0.6,
+  maxSpeed: 4,
+  jump: -14,
+  grounded: false,
+  wall: false,
+  coyote: 0,
+  buffer: 0,
+  facing: 1
+};
+
+/* ---------- LEVEL GENERATION ---------- */
+function generateLevel(n) {
+  const platforms = [{ x: 0, y: 360, w: 800, h: 40 }];
+  const moving = [];
+  const spikes = [{ x: 0, y: 380, w: 800, h: 20 }];
+
+  const count = Math.min(3 + Math.floor(n / 3), 10);
+  let x = 150;
+  let y = 280;
+
+  for (let i = 0; i < count; i++) {
+    platforms.push({
+      x,
+      y,
+      w: 100,
+      h: 20
+    });
+
+    if (n > 10 && i % 2 === 0) {
+      moving.push({
+        x,
+        y: y - 60,
+        w: 100,
+        h: 20,
+        dx: 1 + n * 0.02,
+        range: 120,
+        startX: x
+      });
+    }
+
+    x += 120;
+    y -= 35;
+    if (y < 120) y = 280;
+  }
+
+  return {
+    platforms,
+    moving,
+    spikes,
+    goal: { x: 740, y: y - 40, w: 40, h: 40 }
+  };
+}
+
+let level = generateLevel(0);
+
+/* ---------- INPUT ---------- */
+document.addEventListener("keydown", e => {
+  keys[e.code] = true;
+});
+document.addEventListener("keyup", e => keys[e.code] = false);
+
+/* ---------- UTILS ---------- */
+function rect(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x &&
+         a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function resetPlayer() {
+  player.x = 50;
+  player.y = 300;
+  player.vx = 0;
+  player.vy = 0;
+  spawnGrace = 15;
+}
+
+function nextLevel() {
+  currentLevel++;
+  if (currentLevel >= TOTAL_LEVELS) {
+    alert("YOU BEAT ALL 100 LEVELS");
+    currentLevel = 0;
+    deaths = 0;
+  }
+  level = generateLevel(currentLevel);
+  resetPlayer();
+}
+
+/* ---------- UPDATE ---------- */
+function update() {
+  if (spawnGrace > 0) spawnGrace--;
+
+  if (keys.KeyA) { player.vx -= player.speed; player.facing = -1; }
+  if (keys.KeyD) { player.vx += player.speed; player.facing = 1; }
+
+  player.vx *= 0.9;
+  player.vx = Math.max(-player.maxSpeed, Math.min(player.maxSpeed, player.vx));
+
+  if (keys.KeyW) player.buffer = 6;
+  else player.buffer--;
+
+  player.vy += gravity;
+
+  player.x += player.vx;
+  player.y += player.vy;
+
+  player.grounded = false;
+  player.wall = false;
+
+  [...level.platforms, ...level.moving].forEach(p => {
+    if (rect(player, p)) {
+      const px = player.x - player.vx;
+      const py = player.y - player.vy;
+
+      if (py + player.h <= p.y) {
+        player.y = p.y - player.h;
+        player.vy = 0;
+        player.grounded = true;
+        player.coyote = 6;
+        if (p.dx) player.x += p.dx;
+      } else if (px + player.w <= p.x) {
+        player.x = p.x - player.w;
+        player.wall = true;
+      } else if (px >= p.x + p.w) {
+        player.x = p.x + p.w;
+        player.wall = true;
+      }
+    }
+  });
+
+  if (!player.grounded) player.coyote--;
+
+  if (player.buffer > 0) {
+    if (player.coyote > 0 || player.wall) {
+      player.vy = player.jump;
+      if (player.wall) player.vx = -player.facing * 6;
+      player.buffer = 0;
+    }
+  }
+
+  if (!keys.KeyW && player.vy < 0) player.vy *= jumpCut;
+
+  if (spawnGrace <= 0) {
+    level.spikes.forEach(s => {
+      if (rect(player, s)) {
+        deaths++;
+        resetPlayer();
+      }
+    });
+  }
+
+  if (rect(player, level.goal)) nextLevel();
+
+  level.moving.forEach(p => {
+    p.x += p.dx;
+    if (Math.abs(p.x - p.startX) > p.range) p.dx *= -1;
+  });
+}
+
+/* ---------- DRAW ---------- */
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "#888";
+  level.platforms.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
+
+  ctx.fillStyle = "#AAA";
+  level.moving.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
+
+  ctx.fillStyle = "red";
+  level.spikes.forEach(s => ctx.fillRect(s.x, s.y, s.w, s.h));
+
+  ctx.fillStyle = "gold";
+  ctx.fillRect(level.goal.x, level.goal.y, level.goal.w, level.goal.h);
+
+  ctx.fillStyle = "#4CAF50";
+  ctx.fillRect(player.x, player.y, 30, 30);
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "16px monospace";
+  ctx.fillText(`Level: ${currentLevel + 1} / ${TOTAL_LEVELS}`, 10, 20);
+  ctx.fillText(`Deaths: ${deaths}`, 10, 40);
+}
+
+/* ---------- LOOP ---------- */
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+
 </body>
 </html>
