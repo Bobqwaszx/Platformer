@@ -42,6 +42,8 @@ let currentLevel = 0;
 let checkpointLevel = 0;
 let spawnGrace = 15;
 
+let gameStarted = false;
+
 /* =====================================================
    SAVE + LEADERBOARD
 ===================================================== */
@@ -111,7 +113,10 @@ const player = {
 /* =====================================================
    INPUT
 ===================================================== */
-document.addEventListener("keydown", e => keys[e.code] = true);
+document.addEventListener("keydown", e => {
+  keys[e.code] = true;
+  if (!gameStarted) gameStarted = true;
+});
 document.addEventListener("keyup", e => keys[e.code] = false);
 
 /* =====================================================
@@ -276,15 +281,21 @@ function nextLevel() {
 }
 
 /* =====================================================
-   INIT
+   INIT (FIXED)
 ===================================================== */
 let level;
-loadGame() || (level = generateLevel(0));
+if (loadGame()) {
+  level = generateLevel(currentLevel);
+} else {
+  level = generateLevel(0);
+}
 
 /* =====================================================
    UPDATE
 ===================================================== */
 function update() {
+  if (!gameStarted) return;
+
   if (!timerRunning && (
     keys.KeyA || keys.KeyD || keys.KeyW ||
     keys.ArrowLeft || keys.ArrowRight || keys.ArrowUp
@@ -304,7 +315,9 @@ function update() {
   player.vx *= 0.9;
   player.vx = Math.max(-player.maxSpeed, Math.min(player.maxSpeed, player.vx));
 
-  player.buffer = (keys.KeyW || keys.ArrowUp) ? 6 : Math.max(0, player.buffer - 1);
+  player.buffer = (keys.KeyW || keys.ArrowUp)
+    ? 6
+    : Math.max(0, player.buffer - 1);
 
   player.vy += gravity;
   player.x += player.vx;
@@ -365,6 +378,15 @@ function draw() {
   ctx.fillStyle = BIOMES[level.biome].bg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  if (!gameStarted) {
+    ctx.fillStyle = "#fff";
+    ctx.font = "28px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("PRESS ANY KEY TO START", canvas.width / 2, canvas.height / 2);
+    ctx.textAlign = "left";
+    return;
+  }
+
   for (let x = 0; x < 80; x++)
     for (let y = 0; y < 40; y++)
       if (heatmap[x][y] > 0) {
@@ -388,27 +410,4 @@ function draw() {
   ctx.fillText(`Level ${currentLevel+1}/${TOTAL_LEVELS}`, 10, 18);
   ctx.fillText(`Deaths: ${deaths}`, 10, 34);
   ctx.fillText(
-    `Time: ${getFormattedTime(timerRunning ? performance.now()-runStartTime : runTime)}`,
-    10, 50
-  );
-
-  const lb = loadLeaderboard();
-  ctx.fillText("🏆 FASTEST RUNS", 520, 20);
-  lb.forEach((e,i)=>{
-    ctx.fillText(`${i+1}. ${e.name} — ${getFormattedTime(e.time)}`,520,40+i*18);
-  });
-}
-
-/* =====================================================
-   LOOP
-===================================================== */
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
-loop();
-</script>
-
-</body>
-</html>
+    `Time: ${getFormattedTime(timerRunning ? performance.now()-run
