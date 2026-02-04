@@ -48,7 +48,7 @@ let levelsCompleted = 0;
 let deaths = 0;
 
 /* ================= TIMER ================= */
-let startTime; // start after first draw
+let startTime; // initialized on first frame
 function getTime() { return performance.now() - startTime; }
 function formatTime(ms) {
   if (isNaN(ms)) ms = 0;
@@ -270,16 +270,20 @@ function draw(){
 
 /* ================= INITIALIZE & LOOP ================= */
 loadGame();
-respawn();                     // Ensure player starts in position
-startTime = performance.now();  // Start timer BEFORE first draw
-draw();                         // Draw first frame immediately
+respawn(); // Ensure player starts in position
 
-function loop(){
+let started = false;
+function loop(timestamp){
+  if(!started){
+    startTime = timestamp; // initialize timer on first frame
+    started = true;
+  }
+
   update();
   draw();
   requestAnimationFrame(loop);
 }
-loop();
+requestAnimationFrame(loop);
 </script>
 
 </body>
