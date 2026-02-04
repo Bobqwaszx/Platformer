@@ -48,7 +48,7 @@ let levelsCompleted = 0;
 let deaths = 0;
 
 /* ================= TIMER ================= */
-let startTime; // initialized on first frame
+let startTime;
 function getTime() { return performance.now() - startTime; }
 function formatTime(ms) {
   if (isNaN(ms)) ms = 0;
@@ -92,7 +92,7 @@ const levels = [
   { biome:1, platforms:[{x:0,y:360,w:800,h:40},{x:120,y:280,w:80,h:20},{x:260,y:240,w:80,h:20},{x:400,y:200,w:80,h:20}], moving:[{x:200,y:220,w:120,h:20,dx:1.5,range:150,startX:200}], spikes:[{x:0,y:380,w:800,h:20},{x:0,y:0,w:20,h:160}], goal:{x:740,y:150,w:40,h:40} },
   { biome:1, platforms:[{x:0,y:360,w:800,h:40},{x:150,y:300,w:80,h:20},{x:300,y:260,w:80,h:20},{x:450,y:220,w:80,h:20}], moving:[{x:250,y:200,w:120,h:20,dx:2,range:160,startX:250}], spikes:[{x:0,y:380,w:800,h:20},{x:0,y:0,w:20,h:160},{x:780,y:160,w:20,h:200}], goal:{x:740,y:120,w:40,h:40} },
   { biome:2, platforms:[{x:0,y:360,w:800,h:40},{x:130,y:280,w:60,h:20},{x:260,y:240,w:60,h:20},{x:390,y:200,w:60,h:20},{x:520,y:160,w:60,h:20}], moving:[{x:200,y:220,w:120,h:20,dx:2,range:160,startX:200}], spikes:[{x:0,y:380,w:800,h:20},{x:0,y:0,w:20,h:160},{x:780,y:160,w:20,h:200}], goal:{x:740,y:100,w:40,h:40} },
-  { biome:1, platforms:[{x:0,y:360,w:800,h:40},{x:140,y:280,w:60,h:20},{x:300,y:240,w:60,h:20},{x:460,y:200,w:60,h:20}], moving:[{x:250,y:210,w:120,h:20,dx:2.5,range:180,startX:250}], spikes:[{x:0,y:380,w:800,h:20},{x:0,y:0,w:20,h:160},{x:780,y:160,w:20,h:200}], goal:{x:740,y:90,w:40,h:40} },
+  { biome:1, platforms:[{x:0,y:360,w:800,h:40},{x:140,y:280,w:60,h:20},{x:300,y:240,w:60,h:20},{x:460,y:200,w:60,h:20}], moving:[{x:250,y:210,w:120,h:20,dx:2.5,range:180,startX:250}], spikes:[{x:0,y:380,w:800,h:20},{x:0,y:0,w:20,h:160},{x:780,y:160,w:20,h:20}], goal:{x:740,y:90,w:40,h:40} },
   { biome:2, platforms:[{x:0,y:360,w:800,h:40},{x:120,y:300,w:60,h:20},{x:260,y:250,w:60,h:20},{x:400,y:200,w:60,h:20},{x:540,y:160,w:60,h:20}], moving:[{x:200,y:220,w:120,h:20,dx:3,range:180,startX:200}], spikes:[{x:0,y:380,w:800,h:20},{x:0,y:0,w:20,h:160},{x:780,y:160,w:20,h:200}], goal:{x:740,y:80,w:40,h:40} },
   { biome:3, platforms:[{x:0,y:360,w:800,h:40},{x:150,y:300,w:60,h:20},{x:300,y:260,w:60,h:20},{x:450,y:200,w:60,h:20}], moving:[{x:200,y:210,w:120,h:20,dx:3.5,range:200,startX:200}], spikes:[{x:0,y:380,w:800,h:20},{x:0,y:0,w:20,h:160},{x:780,y:160,w:20,h:200}], goal:{x:740,y:70,w:40,h:40} },
   { biome:3, platforms:[{x:0,y:360,w:800,h:40},{x:130,y:280,w:50,h:20},{x:260,y:240,w:50,h:20},{x:390,y:200,w:50,h:20},{x:520,y:160,w:50,h:20}], moving:[{x:200,y:220,w:120,h:20,dx:4,range:200,startX:200}], spikes:[{x:0,y:380,w:800,h:20},{x:0,y:0,w:20,h:160},{x:780,y:160,w:20,h:200}], goal:{x:740,y:60,w:40,h:40} },
@@ -147,7 +147,6 @@ function addLeaderboardEntry(name, time){
 function update(){
   const level = levels[currentLevel];
 
-  // Movement
   if (keys.KeyA || keys.ArrowLeft) player.vx -= player.speed;
   if (keys.KeyD || keys.ArrowRight) player.vx += player.speed;
   if (keys.KeyW || keys.ArrowUp || keys.Space) player.jumpBuffer = 6;
@@ -161,7 +160,6 @@ function update(){
 
   player.grounded = false;
 
-  // Platforms collision
   [...level.platforms,...level.moving].forEach(p=>{
     if(rect(player,p)){
       const prevY = player.y - player.vy;
@@ -177,13 +175,11 @@ function update(){
 
   if(!player.grounded) player.coyote--;
 
-  // Jump
   if(player.jumpBuffer>0 && player.coyote>0){
     player.vy = jumpForce;
     player.jumpBuffer = 0;
   }
 
-  // Spikes
   level.spikes.forEach(s=>{
     if(rect(player,s)){
       deaths++;
@@ -194,7 +190,6 @@ function update(){
     }
   });
 
-  // Goal
   if(rect(player,level.goal)){
     currentLevel++;
     levelsCompleted++;
@@ -212,7 +207,6 @@ function update(){
     saveGame();
   }
 
-  // Moving platforms
   level.moving.forEach(p=>{
     p.x += p.dx;
     if(Math.abs(p.x - p.startX) > p.range) p.dx*=-1;
@@ -223,11 +217,9 @@ function update(){
 function draw(){
   const level = levels[currentLevel];
 
-  // Background
   ctx.fillStyle = BIOMES[level.biome].bg;
   ctx.fillRect(0,0,800,400);
 
-  // Heatmap
   for(let x=0;x<HEATMAP_COLS;x++)
     for(let y=0;y<HEATMAP_ROWS;y++)
       if(heatmap[x][y]>0){
@@ -235,25 +227,20 @@ function draw(){
         ctx.fillRect(x*10,y*10,10,10);
       }
 
-  // Platforms
   ctx.fillStyle="#888";
   level.platforms.forEach(p=>ctx.fillRect(p.x,p.y,p.w,p.h));
   ctx.fillStyle="#aaa";
   level.moving.forEach(p=>ctx.fillRect(p.x,p.y,p.w,p.h));
 
-  // Spikes
   ctx.fillStyle = BIOMES[level.biome].spike;
   level.spikes.forEach(s=>ctx.fillRect(s.x,s.y,s.w,s.h));
 
-  // Goal
   ctx.fillStyle="gold";
   ctx.fillRect(level.goal.x,level.goal.y,level.goal.w,level.goal.h);
 
-  // Player
   ctx.fillStyle="#4CAF50";
   ctx.fillRect(player.x,player.y,player.w,player.h);
 
-  // UI
   ctx.fillStyle="#fff";
   ctx.font="14px monospace";
   ctx.fillText(`Level: ${currentLevel+1}/${levels.length}`,10,18);
@@ -262,7 +249,6 @@ function draw(){
   ctx.fillText(`Completed: ${levelsCompleted}`,10,66);
   ctx.fillText(`Time: ${formatTime(getTime())}`,10,82);
 
-  // Leaderboard
   const lb = loadLeaderboard();
   ctx.fillText("🏆 Fastest Runs",520,20);
   lb.forEach((e,i)=>ctx.fillText(`${i+1}. ${e.name} — ${formatTime(e.time)}`,520,40+i*18));
@@ -270,20 +256,16 @@ function draw(){
 
 /* ================= INITIALIZE & LOOP ================= */
 loadGame();
-respawn(); // Ensure player starts in position
+respawn();           // Ensure player is in position
+startTime = performance.now();  // timer ready
+draw();              // Draw first frame immediately
 
-let started = false;
-function loop(timestamp){
-  if(!started){
-    startTime = timestamp; // initialize timer on first frame
-    started = true;
-  }
-
+function loop(){
   update();
   draw();
   requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
+loop();
 </script>
 
 </body>
