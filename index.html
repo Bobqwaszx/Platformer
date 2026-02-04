@@ -49,10 +49,7 @@ let deaths = 0;
 
 /* ================= TIMER ================= */
 let startTime = performance.now(); // Start immediately
-let runTime = 0;
-function getTime() {
-  return performance.now() - startTime;
-}
+function getTime() { return performance.now() - startTime; }
 function formatTime(ms) {
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
@@ -89,32 +86,39 @@ const BIOMES = [
 
 /* ================= LEVELS ================= */
 const levels = [
-  {
-    biome: 0,
-    platforms: [
-      { x:0, y:360, w:800, h:40 },
-      { x:120, y:300, w:90, h:20 },
-      { x:240, y:265, w:90, h:20 },
-      { x:360, y:230, w:90, h:20 }
-    ],
-    moving: [],
-    spikes: [{ x:0, y:380, w:800, h:20 }],
-    goal: { x:740, y:80, w:40, h:40 }
-  },
-  {
-    biome: 1,
-    platforms: [
-      { x:0, y:360, w:800, h:40 },
-      { x:100, y:300, w:90, h:20 },
-      { x:250, y:250, w:90, h:20 },
-      { x:400, y:200, w:90, h:20 }
-    ],
-    moving: [{ x:200, y:200, w:120, h:20, dx: 1.5, range: 180, startX: 200 }],
-    spikes: [{ x:0, y:380, w:800, h:20 }, { x:200, y:0, w:400, h:20 }],
-    goal: { x:740, y:80, w:40, h:40 }
-  },
-  // Add more levels here manually...
+  // LEVEL 1
+  { biome:0, platforms:[{x:0,y:360,w:800,h:40},{x:120,y:300,w:90,h:20},{x:240,y:265,w:90,h:20},{x:360,y:230,w:90,h:20}], moving:[], spikes:[{x:0,y:380,w:800,h:20}], goal:{x:740,y:80,w:40,h:40} },
+  // LEVEL 2
+  { biome:0, platforms:[{x:0,y:360,w:800,h:40},{x:150,y:300,w:80,h:20},{x:300,y:260,w:80,h:20},{x:450,y:220,w:80,h:20}], moving:[], spikes:[{x:0,y:380,w:800,h:20}], goal:{x:740,y:60,w:40,h:40} },
+  // LEVEL 3
+  { biome:0, platforms:[{x:0,y:360,w:800,h:40},{x:180,y:300,w:80,h:20},{x:360,y:260,w:80,h:20},{x:540,y:220,w:80,h:20}], moving:[], spikes:[{x:0,y:380,w:800,h:20}], goal:{x:740,y:50,w:40,h:40} },
+  // LEVEL 4
+  { biome:1, platforms:[{x:0,y:360,w:800,h:40},{x:120,y:300,w:80,h:20},{x:300,y:250,w:80,h:20},{x:500,y:200,w:80,h:20}], moving:[{x:200,y:220,w:120,h:20,dx:1.5,range:180,startX:200}], spikes:[{x:0,y:380,w:800,h:20},{x:200,y:0,w:400,h:20}], goal:{x:740,y:60,w:40,h:40} },
+  // LEVEL 5
+  { biome:1, platforms:[{x:0,y:360,w:800,h:40},{x:100,y:300,w:80,h:20},{x:250,y:260,w:80,h:20},{x:400,y:210,w:80,h:20}], moving:[{x:250,y:220,w:120,h:20,dx:1.5,range:160,startX:250}], spikes:[{x:0,y:380,w:800,h:20},{x:0,y:200,w:20,h:160},{x:780,y:160,w:20,h:200}], goal:{x:740,y:50,w:40,h:40} },
+  // LEVEL 6
+  { biome:1, platforms:[{x:0,y:360,w:800,h:40},{x:150,y:300,w:80,h:20},{x:300,y:250,w:80,h:20},{x:450,y:200,w:80,h:20}], moving:[{x:200,y:220,w:120,h:20,dx:1.5,range:180,startX:200}], spikes:[{x:0,y:380,w:800,h:20},{x:0,y:200,w:20,h:160},{x:780,y:160,w:20,h:200}], goal:{x:740,y:50,w:40,h:40} },
+  // LEVEL 7
+  { biome:2, platforms:[{x:0,y:360,w:800,h:40},{x:120,y:300,w:80,h:20},{x:300,y:240,w:80,h:20},{x:500,y:180,w:80,h:20}], moving:[{x:250,y:220,w:120,h:20,dx:2,range:160,startX:250}], spikes:[{x:0,y:380,w:800,h:20},{x:0,y:200,w:20,h:160},{x:780,y:160,w:20,h:200}], goal:{x:740,y:50,w:40,h:40} },
+  // LEVEL 8
+  { biome:2, platforms:[{x:0,y:360,w:800,h:40},{x:100,y:300,w:80,h:20},{x:250,y:250,w:80,h:20},{x:400,y:200,w:80,h:20}], moving:[{x:200,y:210,w:120,h:20,dx:2,range:180,startX:200}], spikes:[{x:0,y:380,w:800,h:20},{x:0,y:200,w:20,h:160},{x:780,y:160,w:20,h:200}], goal:{x:740,y:50,w:40,h:40} },
+  // LEVEL 9
+  { biome:2, platforms:[{x:0,y:360,w:800,h:40},{x:150,y:300,w:80,h:20},{x:300,y:250,w:80,h:20},{x:450,y:200,w:80,h:20}], moving:[{x:250,y:220,w:120,h:20,dx:2,range:160,startX:250}], spikes:[{x:0,y:380,w:800,h:20},{x:0,y:200,w:20,h:160},{x:780,y:160,w:20,h:200}], goal:{x:740,y:50,w:40,h:40} },
+  // LEVEL 10
+  { biome:3, platforms:[{x:0,y:360,w:800,h:40},{x:120,y:300,w:80,h:20},{x:300,y:240,w:80,h:20},{x:500,y:180,w:80,h:20}], moving:[{x:200,y:220,w:120,h:20,dx:2.5,range:180,startX:200}], spikes:[{x:0,y:380,w:800,h:20},{x:0,y:200,w:20,h:160},{x:780,y:160,w:20,h:200}], goal:{x:740,y:50,w:40,h:40} },
+  // LEVEL 11-20
+  // For brevity, repeat pattern but you can manually adjust platforms/moving/spikes to increase difficulty
 ];
+
+for(let i=11;i<=20;i++){
+  levels.push({
+    biome: Math.floor(i/5),
+    platforms:[{x:0,y:360,w:800,h:40},{x:100,y:300,w:80,h:20},{x:250,y:250,w:80,h:20},{x:400,y:200,w:80,h:20}],
+    moving:[{x:200,y:220,w:120,h:20,dx:1.5+i/10,range:160,startX:200}],
+    spikes:[{x:0,y:380,w:800,h:20},{x:0,y:200,w:20,h:160},{x:780,y:160,w:20,h:200}],
+    goal:{x:740,y:50,w:40,h:40}
+  });
+}
 
 /* ================= UTILS ================= */
 function rect(a,b){
@@ -217,7 +221,7 @@ function update(){
     levelsCompleted++;
     if(currentLevel % CHECKPOINT_INTERVAL === 0) checkpointLevel = currentLevel;
     if(currentLevel >= levels.length){
-      runTime = getTime();
+      const runTime = getTime();
       const name = prompt(`YOU BEAT THE GAME! Time: ${formatTime(runTime)}\nEnter name:`, "PLAYER");
       if(name) addLeaderboardEntry(name.slice(0,12), runTime);
       currentLevel = checkpointLevel = levelsCompleted = deaths = 0;
