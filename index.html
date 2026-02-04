@@ -51,6 +51,7 @@ let deaths = 0;
 let startTime; // start after first draw
 function getTime() { return performance.now() - startTime; }
 function formatTime(ms) {
+  if (isNaN(ms)) ms = 0;
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
   return `${m}:${(s % 60).toString().padStart(2,"0")}`;
@@ -269,9 +270,9 @@ function draw(){
 
 /* ================= INITIALIZE & LOOP ================= */
 loadGame();
-respawn();     // Ensure player starts in position
-draw();        // Draw first frame immediately
-startTime = performance.now(); // Start timer after first frame
+respawn();                     // Ensure player starts in position
+startTime = performance.now();  // Start timer BEFORE first draw
+draw();                         // Draw first frame immediately
 
 function loop(){
   update();
