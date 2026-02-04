@@ -32,11 +32,9 @@ const jumpCut = 0.4;
 const keys = {};
 
 let deaths = 0;
-let shake = 0;
-let spawnGrace = 15;
 let currentLevel = 0;
-
 const TOTAL_LEVELS = 100;
+let spawnGrace = 15;
 
 /* ---------- PLAYER ---------- */
 const player = {
@@ -52,55 +50,97 @@ const player = {
   facing: 1
 };
 
-/* ---------- LEVEL GENERATION ---------- */
+/* ---------- LEVEL ARCHETYPES ---------- */
 function generateLevel(n) {
+  const type = n % 5;
   const platforms = [{ x: 0, y: 360, w: 800, h: 40 }];
   const moving = [];
   const spikes = [{ x: 0, y: 380, w: 800, h: 20 }];
+  let goal = { x: 740, y: 300, w: 40, h: 40 };
 
-  const count = Math.min(3 + Math.floor(n / 3), 10);
-  let x = 150;
-  let y = 280;
+  const speed = Math.min(1 + n * 0.03, 3);
 
-  for (let i = 0; i < count; i++) {
-    platforms.push({
-      x,
-      y,
-      w: 100,
-      h: 20
-    });
-
-    if (n > 10 && i % 2 === 0) {
-      moving.push({
-        x,
-        y: y - 60,
-        w: 100,
-        h: 20,
-        dx: 1 + n * 0.02,
-        range: 120,
-        startX: x
-      });
+  /* --- TYPE 0: STAIRCASE --- */
+  if (type === 0) {
+    let x = 120, y = 300;
+    for (let i = 0; i < 6; i++) {
+      platforms.push({ x, y, w: 100, h: 20 });
+      x += 110;
+      y -= 35;
     }
-
-    x += 120;
-    y -= 35;
-    if (y < 120) y = 280;
+    goal.y = y - 40;
   }
 
-  return {
-    platforms,
-    moving,
-    spikes,
-    goal: { x: 740, y: y - 40, w: 40, h: 40 }
-  };
+  /* --- TYPE 1: MOVING TIMING --- */
+  if (type === 1) {
+    for (let i = 0; i < 4; i++) {
+      moving.push({
+        x: 150 + i * 150,
+        y: 260 - i * 30,
+        w: 100,
+        h: 20,
+        dx: speed,
+        range: 120,
+        startX: 150 + i * 150
+      });
+    }
+    goal.y = 120;
+  }
+
+  /* --- TYPE 2: WALL SHAFT --- */
+  if (type === 2) {
+    for (let i = 0; i < 6; i++) {
+      platforms.push({
+        x: i % 2 === 0 ? 80 : 620,
+        y: 320 - i * 40,
+        w: 100,
+        h: 20
+      });
+    }
+    goal.x = 380;
+    goal.y = 60;
+  }
+
+  /* --- TYPE 3: GAP GAUNTLET --- */
+  if (type === 3) {
+    let x = 120;
+    for (let i = 0; i < 5; i++) {
+      platforms.push({
+        x,
+        y: 280,
+        w: 80,
+        h: 20
+      });
+      x += 140;
+    }
+    goal.y = 240;
+  }
+
+  /* --- TYPE 4: HYBRID --- */
+  if (type === 4) {
+    platforms.push({ x: 200, y: 300, w: 120, h: 20 });
+    platforms.push({ x: 450, y: 230, w: 120, h: 20 });
+
+    moving.push({
+      x: 300,
+      y: 160,
+      w: 100,
+      h: 20,
+      dx: speed,
+      range: 180,
+      startX: 300
+    });
+
+    goal.y = 100;
+  }
+
+  return { platforms, moving, spikes, goal };
 }
 
 let level = generateLevel(0);
 
 /* ---------- INPUT ---------- */
-document.addEventListener("keydown", e => {
-  keys[e.code] = true;
-});
+document.addEventListener("keydown", e => keys[e.code] = true);
 document.addEventListener("keyup", e => keys[e.code] = false);
 
 /* ---------- UTILS ---------- */
@@ -120,7 +160,7 @@ function resetPlayer() {
 function nextLevel() {
   currentLevel++;
   if (currentLevel >= TOTAL_LEVELS) {
-    alert("YOU BEAT ALL 100 LEVELS");
+    alert("ALL 100 LEVELS CLEARED");
     currentLevel = 0;
     deaths = 0;
   }
@@ -220,7 +260,7 @@ function draw() {
 
   ctx.fillStyle = "#fff";
   ctx.font = "16px monospace";
-  ctx.fillText(`Level: ${currentLevel + 1} / ${TOTAL_LEVELS}`, 10, 20);
+  ctx.fillText(`Level ${currentLevel + 1} / ${TOTAL_LEVELS}`, 10, 20);
   ctx.fillText(`Deaths: ${deaths}`, 10, 40);
 }
 
