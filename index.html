@@ -2,14 +2,14 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Ultimate Platformer</title>
+<title>Platformer Boss Edition</title>
 <style>
 body{margin:0;background:#111;color:white;font-family:Arial;text-align:center}
 canvas{background:#222;display:block;margin:0 auto;border:2px solid #555}
 </style>
 </head>
 <body>
-<h2>Ultimate Platformer</h2>
+<h2>Platformer Boss Edition</h2>
 <canvas id="game" width="900" height="500"></canvas>
 
 <script>
@@ -25,14 +25,15 @@ document.addEventListener("keyup",e=>keys[e.key]=false);
 
 let gravity=0.5;
 let jumpPower=9;
-let maxJumpHold=20;
+let maxJumpHold=18;
 
 let levelIndex=0;
 let startTime=null;
 let finished=false;
 let deaths=0;
-let lavaY=9999;
-let shake=0;
+
+let boss=null;
+let bossShots=[];
 
 const levels=[
 {
@@ -60,15 +61,16 @@ platforms:[
 hazards:[{x:250,y:450,w:200,h:10}]
 },
 {
-theme:"cave",
+theme:"walljump",
 start:{x:50,y:420},
-goal:{x:820,y:80,w:40,h:40},
+goal:{x:820,y:60,w:40,h:40},
 platforms:[
 {x:0,y:460,w:900,h:40},
-{x:200,y:340,w:140,h:20,move:1,range:120,dir:1,baseX:200},
-{x:500,y:240,w:140,h:20,move:1,range:150,dir:-1,baseX:500}
+{x:300,y:340,w:20,h:120},
+{x:500,y:220,w:20,h:120},
+{x:700,y:100,w:20,h:120}
 ],
-hazards:[{x:0,y:450,w:200,h:10},{x:700,y:450,w:200,h:10}]
+hazards:[]
 },
 {
 theme:"lava",
@@ -84,18 +86,15 @@ platforms:[
 hazards:[]
 },
 {
-theme:"sky",
+theme:"boss",
 start:{x:50,y:420},
 goal:{x:820,y:60,w:40,h:40},
 platforms:[
 {x:0,y:460,w:900,h:40},
-{x:220,y:350,w:80,h:20,fall:1},
-{x:380,y:260,w:80,h:20,fall:1},
-{x:540,y:180,w:80,h:20,fall:1},
-{x:700,y:110,w:80,h:20,fall:1}
+{x:250,y:350,w:120,h:20},
+{x:520,y:260,w:120,h:20}
 ],
-hazards:[{x:0,y:450,w:900,h:10}],
-wind:0.08
+hazards:[]
 }
 ];
 
@@ -107,14 +106,20 @@ player={
 x:s.x,y:s.y,w:22,h:22,
 vx:0,vy:0,
 onGround:false,
-jumpHold:0
+jumpHold:0,
+jumpsLeft:2,
+touchingWall:false,
+jumpPressed:false
 };
-if(levels[levelIndex].theme==="lava") lavaY=500;
+
+bossShots=[];
+if(levels[levelIndex].theme==="boss"){
+boss={x:750,y:380,w:40,h:40,hp:5,cooldown:0};
+}
 }
 
 function resetLevel(){
 deaths++;
-shake=10;
 resetPlayer();
 }
 
@@ -126,34 +131,47 @@ resetPlayer();
 
 resetPlayer();
 
+function rect(a,b){
+return a.x<a.x+a.w&&
+a.x<b.x+b.w&&
+a.x+a.w>b.x&&
+a.y+a.h>b.y&&
+a.y<b.y+b.h;
+}
+
 function update(){
 if(finished)return;
 if(!startTime)startTime=performance.now();
 
 let lvl=levels[levelIndex];
 
-// movement physics
+// movement
 let accel=0.6;
 let maxSpeed=4;
-
-if(lvl.theme==="ice"){accel=0.15; maxSpeed=5;}
+if(lvl.theme==="ice"){accel=0.2;maxSpeed=5;}
 
 if(keys["ArrowLeft"]) player.vx-=accel;
 if(keys["ArrowRight"]) player.vx+=accel;
-
-player.vx*=0.92;
+player.vx*=0.9;
 if(player.vx>maxSpeed)player.vx=maxSpeed;
 if(player.vx<-maxSpeed)player.vx=-maxSpeed;
 
-// wind (sky level)
-if(lvl.wind) player.vx+=lvl.wind;
-
-// jump
-if(keys["ArrowUp"]&&player.onGround){
+// jump + double + wall jump
+if(keys["ArrowUp"] && !player.jumpPressed){
+if(player.jumpsLeft>0){
 player.vy=-jumpPower;
-player.onGround=false;
+player.jumpsLeft--;
 player.jumpHold=0;
 }
+else if(player.touchingWall){
+player.vy=-jumpPower;
+player.vx*= -1.2; // push off wall
+}
+player.jumpPressed=true;
+}
+if(!keys["ArrowUp"]) player.jumpPressed=false;
+
+// hold jump higher
 if(keys["ArrowUp"]&&player.jumpHold<maxJumpHold&&player.vy<0){
 player.vy-=0.3;
 player.jumpHold++;
@@ -163,63 +181,86 @@ player.vy+=gravity;
 player.x+=player.vx;
 player.y+=player.vy;
 
-// moving platforms
-for(const p of lvl.platforms){
-if(p.move){
-p.x+=p.dir*1.5;
-if(Math.abs(p.x-p.baseX)>p.range)p.dir*=-1;
-}
-}
-
 // collisions
 player.onGround=false;
+player.touchingWall=false;
+
 for(const p of lvl.platforms){
-if(player.x<p.x+p.w&&player.x+player.w>p.x&&
-player.y+player.h>p.y&&player.y+player.h<p.y+20&&player.vy>=0){
+
+// wall detection
+if(player.x+player.w>p.x && player.x<p.x+p.w &&
+player.y+player.h>p.y && player.y<p.y+p.h){
+
+// landing
+if(player.vy>=0 && player.y+player.h<p.y+15){
 player.y=p.y-player.h;
 player.vy=0;
 player.onGround=true;
-
-if(p.fall) p.y+=2;
-}
+player.jumpsLeft=2;
 }
 
-// lava
-if(lvl.theme==="lava"){
-lavaY-=0.2;
-if(player.y+player.h>lavaY) resetLevel();
+// hit left wall
+if(player.x+player.w>p.x && player.x<p.x && !player.onGround){
+player.touchingWall=true;
 }
 
-// hazards
-for(const h of lvl.hazards){
-if(player.x<h.x+h.w&&player.x+player.w>h.x&&
-player.y<h.y+h.h&&player.y+player.h>h.y){
+// hit right wall
+if(player.x<p.x+p.w && player.x+player.w>p.x+p.w && !player.onGround){
+player.touchingWall=true;
+}
+}
+}
+
+// boss logic
+if(lvl.theme==="boss" && boss){
+boss.cooldown--;
+if(boss.cooldown<=0){
+boss.cooldown=60;
+bossShots.push({
+x:boss.x,
+y:boss.y+10,
+vx:-5
+});
+}
+
+// shots move
+for(let s of bossShots){
+s.x+=s.vx;
+
+// hit player
+if(player.x<s.x+10&&player.x+player.w>s.x&&
+player.y<s.y+10&&player.y+player.h>s.y){
 resetLevel();
 }
 }
 
-// goal
+// win if reach boss
+if(player.x>boss.x-20 && player.y>boss.y-20){
+boss.hp--;
+player.vx=-6;
+if(boss.hp<=0) nextLevel();
+}
+}
+
+// goal for non-boss
+if(lvl.theme!=="boss"){
 let g=lvl.goal;
 if(player.x<g.x+g.w&&player.x+player.w>g.x&&
 player.y<g.y+g.h&&player.y+player.h>g.y){
 nextLevel();
 }
+}
 
-if(player.y>600)resetLevel();
+if(player.y>600) resetLevel();
 }
 
 function draw(){
-let camX=(Math.random()-0.5)*shake;
-let camY=(Math.random()-0.5)*shake;
-if(shake>0)shake*=0.9;
-
-ctx.setTransform(1,0,0,1,camX,camY);
-ctx.clearRect(-50,-50,1000,600);
+ctx.clearRect(0,0,900,500);
 
 if(finished){
 ctx.fillStyle="white";
 ctx.font="50px Arial";
-ctx.fillText("YOU WIN",350,220);
+ctx.fillText("YOU BEAT THE GAME",220,220);
 let t=((performance.now()-startTime)/1000).toFixed(2);
 ctx.font="30px Arial";
 ctx.fillText("Time: "+t+"s",380,270);
@@ -229,35 +270,40 @@ return;
 
 let lvl=levels[levelIndex];
 
-// background
+// backgrounds
 const bg={
 grass:"#203d20",
 ice:"#1e3f5a",
-cave:"#2b2b2b",
+walljump:"#2e243f",
 lava:"#3a1a1a",
-sky:"#1a2d4a"
+boss:"#000"
 };
 ctx.fillStyle=bg[lvl.theme]||"#222";
 ctx.fillRect(0,0,900,500);
 
 // platforms
 ctx.fillStyle="#888";
-for(const p of lvl.platforms) ctx.fillRect(p.x,p.y,p.w,p.h);
+for(const p of lvl.platforms)
+ctx.fillRect(p.x,p.y,p.w,p.h);
 
-// lava
-if(lvl.theme==="lava"){
-ctx.fillStyle="orange";
-ctx.fillRect(0,lavaY,900,500-lavaY);
+// boss
+if(lvl.theme==="boss" && boss){
+ctx.fillStyle="purple";
+ctx.fillRect(boss.x,boss.y,boss.w,boss.h);
+
+ctx.fillStyle="red";
+for(let s of bossShots) ctx.fillRect(s.x,s.y,10,10);
+
+ctx.fillStyle="white";
+ctx.fillText("Boss HP: "+boss.hp,700,30);
 }
 
-// hazards
-ctx.fillStyle="red";
-for(const h of lvl.hazards) ctx.fillRect(h.x,h.y,h.w,h.h);
-
 // goal
+if(lvl.theme!=="boss"){
 ctx.fillStyle="lime";
 let g=lvl.goal;
 ctx.fillRect(g.x,g.y,g.w,g.h);
+}
 
 // player
 ctx.fillStyle="cyan";
@@ -270,8 +316,7 @@ ctx.font="18px Arial";
 ctx.fillText("Time: "+t,10,20);
 ctx.fillText("Deaths: "+deaths,10,40);
 ctx.fillText("Level "+(levelIndex+1)+"/5",10,60);
-ctx.fillText("Theme: "+lvl.theme,10,80);
-ctx.fillText("R = restart",10,100);
+ctx.fillText("Wall jump enabled",10,80);
 }
 
 function loop(){update();draw();requestAnimationFrame(loop);}
