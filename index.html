@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Platformer Challenge</title>
+<title>Platformer Deluxe Triple Jump</title>
 <style>
 body{margin:0;background:black;color:white;font-family:monospace;text-align:center}
 canvas{background:#111;display:block;margin:auto;border:2px solid white}
@@ -14,7 +14,8 @@ button{font-size:16px;margin:4px}
 <div id="ui">
 Coins: <span id="coins">0</span> |
 Level: <span id="level">1</span> |
-Time: <span id="time">0.0</span>s
+Time: <span id="time">0.0</span>s |
+Jumps Left: <span id="jumps">3</span>
 <br>
 <button onclick="openShop()">Shop</button>
 <button onclick="closeShop()">Back</button>
@@ -47,10 +48,9 @@ let owned=["white"];
 document.addEventListener("keydown",e=>keys[e.key]=true);
 document.addEventListener("keyup",e=>keys[e.key]=false);
 
+// ---------- PLAYER ----------
 class Player{
-constructor(){
-this.reset();
-}
+constructor(){ this.reset(); }
 reset(){
 this.x=50;
 this.y=400;
@@ -62,42 +62,38 @@ this.speed=3;
 this.jumpPower=8;
 this.onGround=false;
 this.jumpHold=0;
-this.maxJumps=2;   // DOUBLE JUMP ENABLED
-this.jumpsLeft=2;
+this.maxJumps=3;   // TRIPLE JUMP ENABLED
+this.jumpsLeft=3;
+this.jumpHeld=false;
 }
 update(){
 this.vx=0;
-
 if(keys["ArrowLeft"]) this.vx=-this.speed;
 if(keys["ArrowRight"]) this.vx=this.speed;
-
 this.x+=this.vx;
 this.vy+=gravity;
 this.y+=this.vy;
 
 this.onGround=false;
+this.wall=false;
 
 for(let p of platforms){
 if(this.x<p.x+p.w && this.x+this.w>p.x &&
    this.y<p.y+p.h && this.y+this.h>p.y){
-
 if(this.vy>0 && this.y+this.h-p.y<20){
 this.y=p.y-this.h;
 this.vy=0;
 this.onGround=true;
 this.jumpsLeft=this.maxJumps;
 }
-else if(this.vy<0){
-this.vy=0;
-}
+else if(this.vy<0){ this.vy=0; }
 }
 }
 
+// wall jump
 for(let w of walls){
 if(this.x<w.x+w.w && this.x+this.w>w.x &&
    this.y<w.y+w.h && this.y+this.h>w.y){
-
-// wall jump
 if(keys["ArrowUp"] && this.jumpsLeft>0){
 this.vy=-10;
 this.vx = (this.x < w.x ? -6 : 6);
@@ -106,7 +102,7 @@ this.jumpsLeft--;
 }
 }
 
-// Jump press
+// jump press
 if(keys["ArrowUp"] && !this.jumpHeld){
 if(this.jumpsLeft>0){
 this.vy=-this.jumpPower;
@@ -117,48 +113,50 @@ this.jumpsLeft--;
 this.jumpHeld=keys["ArrowUp"];
 
 // hold jump higher
-if(keys["ArrowUp"] && this.jumpHold<12){
-this.vy-=0.35;
-this.jumpHold++;
-}
+if(keys["ArrowUp"] && this.jumpHold<12){ this.vy-=0.35; this.jumpHold++; }
 
-if(this.y>canvas.height) die();
+// die if fall
+if(this.y>canvas.height){ this.reset(); }
 
+// spikes
 for(let s of spikes){
 if(this.x<s.x+s.w && this.x+this.w>s.x &&
-   this.y<s.y+s.h && this.y+this.h>s.y) die();
+   this.y<s.y+s.h && this.y+this.h>s.y){ this.reset(); }
 }
 
+// coins
 for(let c of coinList){
 if(!c.got &&
 this.x<c.x+10 && this.x+this.w>c.x &&
 this.y<c.y+10 && this.y+this.h>c.y){
-c.got=true;
-coins++;
-updateUI();
+c.got=true; coins++; updateUI();
 }
 }
 
+// goal
+if(goal){
 if(this.x>goal.x && this.y>goal.y &&
 this.x<goal.x+40 && this.y<goal.y+40){
 nextLevel();
 }
 }
-draw(){
-ctx.fillStyle=skins[playerSkin].color;
-ctx.fillRect(this.x,this.y,this.w,this.h);
+
+document.getElementById("jumps").innerText=this.jumpsLeft;
 }
+draw(){ ctx.fillStyle=skins[playerSkin].color; ctx.fillRect(this.x,this.y,this.w,this.h);}
 }
 
 let player=new Player();
 let platforms=[],spikes=[],walls=[],coinList=[],goal={x:850,y:400};
+let boss,shots=[];
 
+// -------- LEVEL GENERATION ----------
 function generateLevel(lv){
 platforms=[];spikes=[];walls=[];coinList=[];
 player.reset();
-
 let difficulty=lv+1;
 
+// platforms
 for(let i=0;i<5+difficulty;i++){
 platforms.push({
 x:Math.random()*800,
@@ -167,141 +165,90 @@ w:80+Math.random()*80,
 h:15
 });
 }
-
+// spikes
 for(let i=0;i<difficulty;i++){
-spikes.push({
-x:150+i*120,
-y:470,
-w:40,h:30
-});
+spikes.push({x:150+i*120,y:470,w:40,h:30});
 }
-
+// walls for wall jump levels
 if(lv>=2){
-for(let i=0;i<3;i++){
-walls.push({x:300+i*150,y:300,w:20,h:200});
+for(let i=0;i<3;i++){walls.push({x:300+i*150,y:300,w:20,h:200});}
 }
-}
-
+// coins
 for(let i=0;i<5;i++){
 coinList.push({x:100+i*140,y:200-Math.random()*120,got:false});
 }
-
+// goal
 goal={x:820,y:80};
 }
 
 // boss level
 function bossLevel(){
 platforms=[{x:0,y:460,w:900,h:40}];
-spikes=[];
-walls=[];
-coinList=[];
-goal={x:820,y:420};
-
-boss={x:400,y:400,w:60,h:60,hp:10};
+spikes=[]; walls=[]; coinList=[]; goal=null;
+boss={x:400,y:400,w:60,h:60,hp:10,cd:0};
 }
 
-function die(){
-player.reset();
-}
-
+// -------- NEXT LEVEL ----------
 function nextLevel(){
 level++;
-if(level==10){
-bossLevel();
-}else if(level>10){
-alert("YOU WIN! Time: "+((Date.now()-startTime)/1000).toFixed(2)+"s");
-level=1;
-startTime=Date.now();
-generateLevel(level);
-}else{
-generateLevel(level);
-}
+if(level==10){ bossLevel(); }
+else if(level>10){ alert("YOU WIN! Time: "+((Date.now()-startTime)/1000).toFixed(2)+"s"); level=1; startTime=Date.now(); generateLevel(level); }
+else{ generateLevel(level); }
 updateUI();
 }
 
-function draw(){
-ctx.clearRect(0,0,canvas.width,canvas.height);
-
-// theme backgrounds
-let themes=["#111","#102030","#201020","#203010","#301010","#002222","#220022","#222200","#003300","#000"];
-ctx.fillStyle=themes[level%themes.length];
-ctx.fillRect(0,0,canvas.width,canvas.height);
-
-ctx.fillStyle="white";
-for(let p of platforms) ctx.fillRect(p.x,p.y,p.w,p.h);
-
-ctx.fillStyle="red";
-for(let s of spikes) ctx.fillRect(s.x,s.y,s.w,s.h);
-
-ctx.fillStyle="gray";
-for(let w of walls) ctx.fillRect(w.x,w.y,w.w,w.h);
-
-ctx.fillStyle="gold";
-for(let c of coinList) if(!c.got) ctx.fillRect(c.x,c.y,10,10);
-
-ctx.fillStyle="lime";
-ctx.fillRect(goal.x,goal.y,40,40);
-
-if(level==10 && boss){
-ctx.fillStyle="purple";
-ctx.fillRect(boss.x,boss.y,boss.w,boss.h);
-
-if(player.x<boss.x+boss.w && player.x+player.w>boss.x &&
-player.y<boss.y+boss.h && player.y+player.h>boss.y){
-boss.hp--;
-player.vy=-8;
-if(boss.hp<=0){
-alert("Boss defeated!");
-nextLevel();
-}
-}
-}
-
-player.update();
-player.draw();
-
-document.getElementById("time").innerText=
-((Date.now()-startTime)/1000).toFixed(1);
-
-requestAnimationFrame(draw);
-}
-
-function updateUI(){
-document.getElementById("coins").innerText=coins;
-document.getElementById("level").innerText=level;
-}
-
+// -------- SHOP ----------
 function openShop(){
 document.getElementById("shop").style.display="block";
 let html="<b>Skins</b><br>";
 for(let k in skins){
 let s=skins[k];
-if(!owned.includes(k)){
-html+=`<button onclick="buy('${k}')">${k} (${s.price})</button>`;
-}else{
-html+=`<button onclick="equip('${k}')">Use ${k}</button>`;
-}
+if(!owned.includes(k)){ html+=`<button onclick="buy('${k}')">${k} (${s.price})</button>`; }
+else{ html+=`<button onclick="equip('${k}')">Use ${k}</button>`; }
 }
 document.getElementById("shop").innerHTML=html;
 }
-function closeShop(){
-document.getElementById("shop").style.display="none";
+function closeShop(){document.getElementById("shop").style.display="none";}
+
+// -------- BUY/USE SKINS ----------
+function buy(name){ let s=skins[name]; if(coins>=s.price){ coins-=s.price; owned.push(name); updateUI(); openShop(); } }
+function equip(name){ playerSkin=name; }
+
+// -------- UI ----------
+function updateUI(){ document.getElementById("coins").innerText=coins; document.getElementById("level").innerText=level; }
+
+// -------- DRAW LOOP ----------
+function draw(){
+ctx.clearRect(0,0,canvas.width,canvas.height);
+// theme backgrounds
+let themes=["#111","#102030","#201020","#203010","#301010","#002222","#220022","#222200","#003300","#000"];
+ctx.fillStyle=themes[level%themes.length]; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+// draw platforms
+ctx.fillStyle="white"; for(let p of platforms) ctx.fillRect(p.x,p.y,p.w,p.h);
+// draw spikes
+ctx.fillStyle="red"; for(let s of spikes) ctx.fillRect(s.x,s.y,s.w,s.h);
+// walls
+ctx.fillStyle="gray"; for(let w of walls) ctx.fillRect(w.x,w.y,w.w,w.h);
+// coins
+ctx.fillStyle="gold"; for(let c of coinList) if(!c.got) ctx.fillRect(c.x,c.y,10,10);
+// goal
+if(goal){ ctx.fillStyle="lime"; ctx.fillRect(goal.x,goal.y,40,40); }
+// boss
+if(boss){
+ctx.fillStyle="purple"; ctx.fillRect(boss.x,boss.y,boss.w,boss.h);
+if(player.x<boss.x+boss.w && player.x+player.w>boss.x &&
+player.y<boss.y+boss.h && player.y+player.h>boss.y){ boss.hp--; player.vy=-8; if(boss.hp<=0){ alert("Boss defeated!"); nextLevel(); } }
+}
+// player
+player.update(); player.draw();
+
+// timer
+document.getElementById("time").innerText=((Date.now()-startTime)/1000).toFixed(1);
+
+requestAnimationFrame(draw);
 }
 
-function buy(name){
-let s=skins[name];
-if(coins>=s.price){
-coins-=s.price;
-owned.push(name);
-updateUI();
-openShop();
-}
-}
-function equip(name){
-playerSkin=name;
-}
-
-level=1;
 generateLevel(level);
 updateUI();
 draw();
